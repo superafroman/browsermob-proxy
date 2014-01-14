@@ -116,9 +116,9 @@ import org.xbill.DNS.DClass;
  * WARN : Require zlib > 1.1.4 (deflate support)
  */
 public class BrowserMobHttpClient {
-	private static final Log LOG = new Log();
-	public static UserAgentStringParser PARSER = UADetectorServiceFactory.getCachingAndUpdatingParser();
-	
+    private static final Log LOG = new Log();
+    public static UserAgentStringParser PARSER = UADetectorServiceFactory.getCachingAndUpdatingParser();
+
     private static final int BUFFER = 4096;
 
     private Har har;
@@ -128,12 +128,12 @@ public class BrowserMobHttpClient {
      * keep headers
      */
     private boolean captureHeaders;
-    
+
     /**
      * keep contents
      */
     private boolean captureContent;
-    
+
     /**
      * keep binary contents (if captureContent is set to true, default policy is to capture binary contents too)
      */
@@ -143,7 +143,7 @@ public class BrowserMobHttpClient {
      * socket factory dedicated to port 80 (HTTP)
      */
     private SimulatedSocketFactory socketFactory;
-    
+
     /**
      * socket factory dedicated to port 443 (HTTPS)
      */
@@ -151,89 +151,89 @@ public class BrowserMobHttpClient {
 
 
     private PoolingHttpClientConnectionManager httpClientConnMgr;
-    
+
     /**
      * Builders for httpClient
      * Each time you change their configuration you should call updateHttpClient()
      */
-	private Builder requestConfigBuilder;
+    private Builder requestConfigBuilder;
     private HttpClientBuilder httpClientBuilder;
-    
+
     /**
      * The current httpClient which will execute HTTP requests
      */
     private CloseableHttpClient httpClient;
-    
+
     private BasicCookieStore cookieStore = new BasicCookieStore();
-    
+
     /**
      * List of rejected URL patterns
      */
     private List<BlacklistEntry> blacklistEntries = new CopyOnWriteArrayList<BlacklistEntry>();
-    
+
     /**
      * List of accepted URL patterns
      */
 
     private WhitelistEntry whitelistEntry = null;
-    
+
     /**
      * List of URLs to rewrite
      */
     private List<RewriteRule> rewriteRules = new CopyOnWriteArrayList<RewriteRule>();
-    
+
     /**
      * triggers to process when sending request
      */
     private List<RequestInterceptor> requestInterceptors = new CopyOnWriteArrayList<RequestInterceptor>();
-    
+
     /**
      * triggers to process when receiving response
      */
     private List<ResponseInterceptor> responseInterceptors = new CopyOnWriteArrayList<ResponseInterceptor>();
-    
+
     /**
      * additional headers sent with request
      */
     private HashMap<String, String> additionalHeaders = new LinkedHashMap<String, String>();
-    
+
     /**
      * request timeout: set to -1 to disable timeout
      */
     private int requestTimeout = -1;
-    
+
     /**
      * is it possible to add a new request?
      */
     private AtomicBoolean allowNewRequests = new AtomicBoolean(true);
-    
+
     /**
      * DNS lookup handler
      */
     private BrowserMobHostNameResolver hostNameResolver;
-    
+
     /**
      * does the proxy support gzip compression? (set to false if you go through a browser)
      */
     private boolean decompress = true;
-    
+
     /**
      * set of active requests
      */
     // not using CopyOnWriteArray because we're WRITE heavy and it is for READ heavy operations
     // instead doing it the old fashioned way with a synchronized block
     private final Set<ActiveRequest> activeRequests = new HashSet<ActiveRequest>();
-    
+
     /**
      * credentials used for authentication
      */
     private WildcardMatchingCredentialsProvider credsProvider;
-    
+
     /**
      * is the client shutdown?
      */
     private boolean shutdown = false;
-    
+
     /**
      * authentication type used
      */
@@ -243,17 +243,17 @@ public class BrowserMobHttpClient {
      * does the proxy follow redirects? (set to false if you go through a browser)
      */
     private boolean followRedirects = true;
-    
+
     /**
      * maximum redirects supported by the proxy
      */
     private static final int MAX_REDIRECT = 10;
-    
+
     /**
      * remaining requests counter
      */
     private AtomicInteger requestCounter;
-    
+
     /**
      * Init HTTP client
      * @param streamManager will be capped to 100 Megabits (by default it is disabled)
@@ -266,16 +266,16 @@ public class BrowserMobHttpClient {
         sslSocketFactory = new TrustingSSLSocketFactory(new AllowAllHostnameVerifier(), streamManager);
 
         requestConfigBuilder = RequestConfig.custom()
-    		.setConnectionRequestTimeout(60000)
-    		.setConnectTimeout(2000)
-    		.setSocketTimeout(60000);
-        
+                .setConnectionRequestTimeout(60000)
+                .setConnectTimeout(2000)
+                .setSocketTimeout(60000);
+
         // we associate each SocketFactory with their protocols
         Registry<ConnectionSocketFactory> registry = RegistryBuilder.<ConnectionSocketFactory>create()
-        	.register("http", this.socketFactory)
-        	.register("https", this.sslSocketFactory)
-        	.build();
-        
+                .register("http", this.socketFactory)
+                .register("https", this.sslSocketFactory)
+                .build();
+
         httpClientConnMgr = new PoolingHttpClientConnectionManager(registry, hostNameResolver) {
             @Override
             public ConnectionRequest requestConnection(HttpRoute route, Object state) {
@@ -291,10 +291,10 @@ public class BrowserMobHttpClient {
                         }
                     }
 
-					@Override
-					public boolean cancel() {
-						return wrapped.cancel();
-					}
+                    @Override
+                    public boolean cancel() {
+                        return wrapped.cancel();
+                    }
                 };
             }
         };
@@ -305,88 +305,88 @@ public class BrowserMobHttpClient {
         credsProvider = new WildcardMatchingCredentialsProvider();
         httpClientBuilder = getDefaultHttpClientBuilder(streamManager);
         httpClient = httpClientBuilder.build();
-        
+
         HttpClientInterrupter.watch(this);
     }
 
-	private HttpClientBuilder getDefaultHttpClientBuilder(final StreamManager streamManager) {
-		assert requestConfigBuilder != null;
-		return HttpClientBuilder.create()
-        	.setConnectionManager(httpClientConnMgr)
-        	.setRequestExecutor(new HttpRequestExecutor() {
-        		@Override
-                protected HttpResponse doSendRequest(HttpRequest request, HttpClientConnection conn, HttpContext context) throws IOException, HttpException {
+    private HttpClientBuilder getDefaultHttpClientBuilder(final StreamManager streamManager) {
+        assert requestConfigBuilder != null;
+        return HttpClientBuilder.create()
+                .setConnectionManager(httpClientConnMgr)
+                .setRequestExecutor(new HttpRequestExecutor() {
+                    @Override
+                    protected HttpResponse doSendRequest(HttpRequest request, HttpClientConnection conn, HttpContext context) throws IOException, HttpException {
 
 
-                    // set date before sending
-                    Date start = new Date();
-                    
-                    // send request
-                    HttpResponse response = super.doSendRequest(request, conn, context);
-                    
-                    // set "sending" for resource
-                    RequestInfo.get().send(start, new Date());
-                    return response;
-                }
+                        // set date before sending
+                        Date start = new Date();
 
-                @Override
-                protected HttpResponse doReceiveResponse(HttpRequest request, HttpClientConnection conn, HttpContext context) throws HttpException, IOException {
-                    Date start = new Date();    
-                    HttpResponse response = super.doReceiveResponse(request, conn, context);
-                    
-                    // +4 => header/data separation
-                    long responseHeadersSize = response.getStatusLine().toString().length() + 4;
-					for (Header header : response.getAllHeaders()) {
-						// +2 => new line
-						responseHeadersSize += header.toString().length() + 2;
-					}
-					// set current entry response
-                    HarEntry entry = RequestInfo.get().getEntry();
-                    if (entry != null) {
-						entry.getResponse().setHeadersSize(responseHeadersSize);
-					}
-                    if(streamManager.getLatency() > 0 && RequestInfo.get().getLatency() != null){
-                        // retrieve real latency discovered in connect SimulatedSocket
-                    	long realLatency = RequestInfo.get().getLatency();
-                        // add latency
-                    	if(realLatency < streamManager.getLatency()){
-                            try {
-								Thread.sleep(streamManager.getLatency()-realLatency);
-							} catch (InterruptedException e) {
-								Thread.interrupted();
-							}
-                        }  
-                    }  
-                    // set waiting time
-                    RequestInfo.get().wait(start,new Date());
-                    
-                    return response;
-                }
-	        })
-	        .setDefaultRequestConfig(requestConfigBuilder.build())
-	        .setDefaultCredentialsProvider(credsProvider)
-	        .setDefaultCookieStore(cookieStore)
-	        .addInterceptorLast(new PreemptiveAuth())
-	        .setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
-	        // we set an empty httpProcessorBuilder to remove the automatic compression management
-	        .setHttpProcessor(HttpProcessorBuilder.create().build())
-	        // we always set this to false so it can be handled manually:
-	        .disableRedirectHandling();
-	}
+                        // send request
+                        HttpResponse response = super.doSendRequest(request, conn, context);
+
+                        // set "sending" for resource
+                        RequestInfo.get().send(start, new Date());
+                        return response;
+                    }
+
+                    @Override
+                    protected HttpResponse doReceiveResponse(HttpRequest request, HttpClientConnection conn, HttpContext context) throws HttpException, IOException {
+                        Date start = new Date();
+                        HttpResponse response = super.doReceiveResponse(request, conn, context);
+
+                        // +4 => header/data separation
+                        long responseHeadersSize = response.getStatusLine().toString().length() + 4;
+                        for (Header header : response.getAllHeaders()) {
+                            // +2 => new line
+                            responseHeadersSize += header.toString().length() + 2;
+                        }
+                        // set current entry response
+                        HarEntry entry = RequestInfo.get().getEntry();
+                        if (entry != null) {
+                            entry.getResponse().setHeadersSize(responseHeadersSize);
+                        }
+                        if(streamManager.getLatency() > 0 && RequestInfo.get().getLatency() != null){
+                            // retrieve real latency discovered in connect SimulatedSocket
+                            long realLatency = RequestInfo.get().getLatency();
+                            // add latency
+                            if(realLatency < streamManager.getLatency()){
+                                try {
+                                    Thread.sleep(streamManager.getLatency()-realLatency);
+                                } catch (InterruptedException e) {
+                                    Thread.interrupted();
+                                }
+                            }
+                        }
+                        // set waiting time
+                        RequestInfo.get().wait(start,new Date());
+
+                        return response;
+                    }
+                })
+                .setDefaultRequestConfig(requestConfigBuilder.build())
+                .setDefaultCredentialsProvider(credsProvider)
+                .setDefaultCookieStore(cookieStore)
+                .addInterceptorLast(new PreemptiveAuth())
+                .setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
+                        // we set an empty httpProcessorBuilder to remove the automatic compression management
+                .setHttpProcessor(HttpProcessorBuilder.create().build())
+                        // we always set this to false so it can be handled manually:
+                .disableRedirectHandling();
+    }
 
     public void setRetryCount(int count) {
-    	httpClientBuilder.setRetryHandler(new DefaultHttpRequestRetryHandler(count, false));
-    	updateHttpClient();
+        httpClientBuilder.setRetryHandler(new DefaultHttpRequestRetryHandler(count, false));
+        updateHttpClient();
     }
-	
+
     public void remapHost(String source, String target) {
         hostNameResolver.remap(source, target);
     }
 
     @Deprecated
     public void addRequestInterceptor(HttpRequestInterceptor i) {
-    	httpClientBuilder.addInterceptorLast(i);
-    	updateHttpClient();
+        httpClientBuilder.addInterceptorLast(i);
+        updateHttpClient();
     }
 
     public void addRequestInterceptor(RequestInterceptor interceptor) {
@@ -395,8 +395,8 @@ public class BrowserMobHttpClient {
 
     @Deprecated
     public void addResponseInterceptor(HttpResponseInterceptor i) {
-    	httpClientBuilder.addInterceptorLast(i);
-    	updateHttpClient();
+        httpClientBuilder.addInterceptorLast(i);
+        updateHttpClient();
     }
 
     public void addResponseInterceptor(ResponseInterceptor interceptor) {
@@ -417,7 +417,7 @@ public class BrowserMobHttpClient {
     }
 
     public void clearCookies() {
-    	cookieStore.clear();
+        cookieStore.clear();
     }
 
     public Cookie getCookie(String name) {
@@ -565,7 +565,7 @@ public class BrowserMobHttpClient {
                 activeRequest.checkTimeout();
             }
         }
-        
+
         // Close expired connections
         httpClientConnMgr.closeExpiredConnections();
         // Optionally, close connections
@@ -608,7 +608,7 @@ public class BrowserMobHttpClient {
 
         HttpRequestBase method = req.getMethod();
         String url = method.getURI().toString();
-        
+
         // save the browser and version if it's not yet been set
         if (har != null && har.getLog().getBrowser() == null) {
             Header[] uaHeaders = method.getHeaders("User-Agent");
@@ -621,7 +621,7 @@ public class BrowserMobHttpClient {
                     String version = uai.getVersionNumber().toVersionString();
                     har.getLog().setBrowser(new HarNameVersion(browser, version));
                 } catch (Exception e) {
-                	LOG.warn("Failed to parse user agent string", e);
+                    LOG.warn("Failed to parse user agent string", e);
                 }
             }
         }
@@ -656,7 +656,7 @@ public class BrowserMobHttpClient {
                         break;
                     }
                 }
-                
+
                 // url does not match whitelist, set the response code
                 if (!found) {
                     mockResponseCode = whitelistEntry.getResponseCode();
@@ -694,7 +694,7 @@ public class BrowserMobHttpClient {
         if (os == null) {
             os = new CappedByteArrayOutputStream(1024 * 1024); // MOB-216 don't buffer more than 1 MB
         }
-        
+
         // link the object up now, before we make the request, so that if we get cut off (ie: favicon.ico request and browser shuts down)
         // we still have the attempt associated, even if we never got a response
         HarEntry entry = new HarEntry(harPageRef);
@@ -708,15 +708,15 @@ public class BrowserMobHttpClient {
             har.getLog().addEntry(entry);
         }
 
-    	String query = method.getURI().getRawQuery();
-    	if (query != null) {
-	        MultiMap<String> params = new MultiMap<String>();
-	        UrlEncoded.decodeTo(query, params, "UTF-8");
-	        for (String k : params.keySet()) {
-	        	for (Object v : params.getValues(k)) {
-	        		entry.getRequest().getQueryString().add(new HarNameValuePair(k, (String) v));
-	        	}
-	        }
+        String query = method.getURI().getRawQuery();
+        if (query != null) {
+            MultiMap<String> params = new MultiMap<String>();
+            UrlEncoded.decodeTo(query, params, "UTF-8");
+            for (String k : params.keySet()) {
+                for (Object v : params.getValues(k)) {
+                    entry.getRequest().getQueryString().add(new HarNameValuePair(k, (String) v));
+                }
+            }
         }
 
         String errorMessage = null;
@@ -772,17 +772,17 @@ public class BrowserMobHttpClient {
                 ProtocolVersion version = null;
                 int reqDotVersion = req.getProxyRequest().getDotVersion();
                 if (reqDotVersion == -1) {
-                	version = new HttpVersion(0, 9);
+                    version = new HttpVersion(0, 9);
                 } else if (reqDotVersion == 0) {
-                	version = new HttpVersion(1, 0);
+                    version = new HttpVersion(1, 0);
                 } else if (reqDotVersion == 1) {
-                   	version = new HttpVersion(1, 1);
+                    version = new HttpVersion(1, 1);
                 }
                 // and if not any of these, trust that a Null version will
                 // cause an appropriate error
-				callback.handleStatusLine(new BasicStatusLine(version, statusCode, "Status set by browsermob-proxy"));
-				// No mechanism to look up the response text by status code,
-				// so include a notification that this is a synthetic error code.
+                callback.handleStatusLine(new BasicStatusLine(version, statusCode, "Status set by browsermob-proxy"));
+                // No mechanism to look up the response text by status code,
+                // so include a notification that this is a synthetic error code.
             } else {
                 response = httpClient.execute(method, ctx);
                 statusLine = response.getStatusLine();
@@ -799,23 +799,23 @@ public class BrowserMobHttpClient {
                 // check for null (resp 204 can cause HttpClient to return null, which is what Google does with http://clients1.google.com/generate_204)
                 if (is != null) {
                     Header contentEncodingHeader = response.getFirstHeader("Content-Encoding");
-                	if(contentEncodingHeader != null) {
+                    if(contentEncodingHeader != null) {
                         if ("gzip".equalsIgnoreCase(contentEncodingHeader.getValue())) {
                             gzipping = true;
                         } else if ("deflate".equalsIgnoreCase(contentEncodingHeader.getValue())) {
-                        	deflating = true;
+                            deflating = true;
                         }
-                	}
+                    }
 
                     // deal with GZIP content!
                     if(decompress && response.getEntity().getContentLength() != 0) { //getContentLength<0 if unknown
                         if (gzipping) {
                             is = new GZIPInputStream(is);
-                        } else if (deflating) {  
-                        	// RAW deflate only
-                        	// WARN : if system is using zlib<=1.1.4 the stream must be append with a dummy byte
-                        	// that is not requiered for zlib>1.1.4 (not mentioned on current Inflater javadoc)	        
-                        	is = new InflaterInputStream(is, new Inflater(true));
+                        } else if (deflating) {
+                            // RAW deflate only
+                            // WARN : if system is using zlib<=1.1.4 the stream must be append with a dummy byte
+                            // that is not requiered for zlib>1.1.4 (not mentioned on current Inflater javadoc)	        
+                            is = new InflaterInputStream(is, new Inflater(true));
                         }
                     }
 
@@ -851,12 +851,12 @@ public class BrowserMobHttpClient {
                 }
             }
             if (response != null) {
-            	try {
-					response.close();
-				} catch (IOException e) {
-					// nothing to do
-					e.printStackTrace();
-				}
+                try {
+                    response.close();
+                } catch (IOException e) {
+                    // nothing to do
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -875,7 +875,7 @@ public class BrowserMobHttpClient {
         entry.getResponse().getContent().setSize(bytes);
         entry.getResponse().setStatus(statusCode);
         if (response != null) {
-        	entry.getResponse().setHttpVersion(response.getProtocolVersion().toString());
+            entry.getResponse().setHttpVersion(response.getProtocolVersion().toString());
         }
         if (statusLine != null) {
             entry.getResponse().setStatusText(statusLine.getReasonPhrase());
@@ -897,23 +897,23 @@ public class BrowserMobHttpClient {
                 }
             }
         }
-        
-        
-    	// +4 => header/data separation
-		long requestHeadersSize = method.getRequestLine().toString().length() + 4;
-		long requestBodySize = 0;
-		for (Header header : method.getAllHeaders()) {
-			// +2 => new line
-			requestHeadersSize += header.toString().length() + 2;
-			// get body size
-			if (header.getName().equals("Content-Length")) {
-				requestBodySize += Integer.valueOf(header.getValue());
-			}
-		}
+
+
+        // +4 => header/data separation
+        long requestHeadersSize = method.getRequestLine().toString().length() + 4;
+        long requestBodySize = 0;
+        for (Header header : method.getAllHeaders()) {
+            // +2 => new line
+            requestHeadersSize += header.toString().length() + 2;
+            // get body size
+            if (header.getName().equals("Content-Length")) {
+                requestBodySize += Integer.valueOf(header.getValue());
+            }
+        }
         entry.getRequest().setHeadersSize(requestHeadersSize);
         entry.getRequest().setBodySize(requestBodySize);
         if (captureContent) {
-        	
+
             // can we understand the POST data at all?
             if (method instanceof HttpEntityEnclosingRequestBase && req.getCopy() != null) {
                 HttpEntityEnclosingRequestBase enclosingReq = (HttpEntityEnclosingRequestBase) method;
@@ -926,7 +926,7 @@ public class BrowserMobHttpClient {
 
                 if (urlEncoded || URLEncodedUtils.isEncoded(entity)) {
                     try {
-    					final String content = new String(req.getCopy().toByteArray(), "UTF-8");
+                        final String content = new String(req.getCopy().toByteArray(), "UTF-8");
 
                         if (content != null && content.length() > 0) {
                             List<NameValuePair> result = new ArrayList<NameValuePair>();
@@ -973,20 +973,20 @@ public class BrowserMobHttpClient {
                         // ok, we need to decompress it before we can put it in the har file
                         try {
                             InputStream temp = null;
-                            if(gzipping){	
+                            if(gzipping){
                                 temp = new GZIPInputStream(new ByteArrayInputStream(copy.toByteArray()));
                             } else if (deflating) {
-                            	// RAW deflate only?
-                            	// WARN : if system is using zlib<=1.1.4 the stream must be append with a dummy byte
-                            	// that is not requiered for zlib>1.1.4 (not mentioned on current Inflater javadoc)		        
-                            	temp = new InflaterInputStream(new ByteArrayInputStream(copy.toByteArray()), new Inflater(true));
+                                // RAW deflate only?
+                                // WARN : if system is using zlib<=1.1.4 the stream must be append with a dummy byte
+                                // that is not requiered for zlib>1.1.4 (not mentioned on current Inflater javadoc)		        
+                                temp = new InflaterInputStream(new ByteArrayInputStream(copy.toByteArray()), new Inflater(true));
                             }
                             copy = new ByteArrayOutputStream();
                             IOUtils.copy(temp, copy);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
-                    } 
+                    }
 
                     if (hasTextualContent(contentType)) {
                         setTextOfEntry(entry, copy, contentType);
@@ -1074,31 +1074,31 @@ public class BrowserMobHttpClient {
         return new BrowserMobHttpResponse(entry, method, response, errorMessage, contentType, charSet);
     }
 
-	private boolean hasTextualContent(String contentType) {
-		return contentType != null && contentType.startsWith("text/") ||
-				contentType.startsWith("application/x-javascript") ||
-				contentType.startsWith("application/javascript")  ||
-				contentType.startsWith("application/json")  ||
-				contentType.startsWith("application/xml")  ||
-				contentType.startsWith("application/xhtml+xml");
-	}
+    private boolean hasTextualContent(String contentType) {
+        return contentType != null && contentType.startsWith("text/") ||
+                contentType.startsWith("application/x-javascript") ||
+                contentType.startsWith("application/javascript")  ||
+                contentType.startsWith("application/json")  ||
+                contentType.startsWith("application/xml")  ||
+                contentType.startsWith("application/xhtml+xml");
+    }
 
-	private void setBinaryContentOfEntry(HarEntry entry, ByteArrayOutputStream copy) {
-		entry.getResponse().getContent().setText(Base64.byteArrayToBase64(copy.toByteArray()));
-		entry.getResponse().getContent().setEncoding("base64");
-	}
+    private void setBinaryContentOfEntry(HarEntry entry, ByteArrayOutputStream copy) {
+        entry.getResponse().getContent().setText(Base64.byteArrayToBase64(copy.toByteArray()));
+        entry.getResponse().getContent().setEncoding("base64");
+    }
 
-	private void setTextOfEntry(HarEntry entry, ByteArrayOutputStream copy, String contentType) {
-		ContentType contentTypeCharset = ContentType.parse(contentType);
-		Charset charset = contentTypeCharset.getCharset();
-		if (charset != null) {
-			entry.getResponse().getContent().setText(new String(copy.toByteArray(), charset));
-		} else {
-			entry.getResponse().getContent().setText(new String(copy.toByteArray()));
-		}
-	}
+    private void setTextOfEntry(HarEntry entry, ByteArrayOutputStream copy, String contentType) {
+        ContentType contentTypeCharset = ContentType.parse(contentType);
+        Charset charset = contentTypeCharset.getCharset();
+        if (charset != null) {
+            entry.getResponse().getContent().setText(new String(copy.toByteArray(), charset));
+        } else {
+            entry.getResponse().getContent().setText(new String(copy.toByteArray()));
+        }
+    }
 
-    
+
     public void shutdown() {
         shutdown = true;
         abortActiveRequests();
@@ -1134,14 +1134,14 @@ public class BrowserMobHttpClient {
 
     public void setSocketOperationTimeout(int readTimeout) {
         requestConfigBuilder.setSocketTimeout(readTimeout);
-    	httpClientBuilder.setDefaultRequestConfig(requestConfigBuilder.build());
-    	updateHttpClient();
+        httpClientBuilder.setDefaultRequestConfig(requestConfigBuilder.build());
+        updateHttpClient();
     }
 
     public void setConnectionTimeout(int connectionTimeout) {
         requestConfigBuilder.setConnectTimeout(connectionTimeout);
-    	httpClientBuilder.setDefaultRequestConfig(requestConfigBuilder.build());
-    	updateHttpClient();
+        httpClientBuilder.setDefaultRequestConfig(requestConfigBuilder.build());
+        updateHttpClient();
     }
 
     public void setFollowRedirects(boolean followRedirects) {
@@ -1172,7 +1172,7 @@ public class BrowserMobHttpClient {
     }
 
     public void clearRewriteRules() {
-    	rewriteRules.clear();
+        rewriteRules.clear();
     }
 
     // this method is provided for backwards compatibility before we renamed it to
@@ -1206,7 +1206,7 @@ public class BrowserMobHttpClient {
         // synchronized to guard against concurrent modification
         whitelistEntry = null;
     }
-    
+
     public void addHeader(String name, String value) {
         additionalHeaders.put(name, value);
     }
@@ -1216,35 +1216,35 @@ public class BrowserMobHttpClient {
      */
     public void prepareForBrowser() {
         // Clear cookies, let the browser handle them
-    	cookieStore.clear();
-    	CookieSpecProvider easySpecProvider = new CookieSpecProvider() {
-    	    public CookieSpec create(HttpContext context) {
-    	        return new BrowserCompatSpec() {
-    	            @Override
-    	            public void validate(Cookie cookie, CookieOrigin origin)
-    	                    throws MalformedCookieException {
-    	                // Oh, I am easy
-    	            }
-    	        };
-    	    }
-    	};
-    	
-    	Registry<CookieSpecProvider> r = RegistryBuilder.<CookieSpecProvider>create()
-    	        .register(CookieSpecs.BEST_MATCH,
-    	            new BestMatchSpecFactory())
-    	        .register(CookieSpecs.BROWSER_COMPATIBILITY,
-    	            new BrowserCompatSpecFactory())
-    	        .register("easy", easySpecProvider)
-    	        .build();
-    	
-    	RequestConfig requestConfig = RequestConfig.custom()
-    	        .setCookieSpec("easy")
-    	        .build();
-    	
-    	httpClientBuilder.setDefaultCookieSpecRegistry(r)
-	    .setDefaultRequestConfig(requestConfig);
-    	updateHttpClient();
-    	
+        cookieStore.clear();
+        CookieSpecProvider easySpecProvider = new CookieSpecProvider() {
+            public CookieSpec create(HttpContext context) {
+                return new BrowserCompatSpec() {
+                    @Override
+                    public void validate(Cookie cookie, CookieOrigin origin)
+                            throws MalformedCookieException {
+                        // Oh, I am easy
+                    }
+                };
+            }
+        };
+
+        Registry<CookieSpecProvider> r = RegistryBuilder.<CookieSpecProvider>create()
+                .register(CookieSpecs.BEST_MATCH,
+                        new BestMatchSpecFactory())
+                .register(CookieSpecs.BROWSER_COMPATIBILITY,
+                        new BrowserCompatSpecFactory())
+                .register("easy", easySpecProvider)
+                .build();
+
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setCookieSpec("easy")
+                .build();
+
+        httpClientBuilder.setDefaultCookieSpecRegistry(r)
+                .setDefaultRequestConfig(requestConfig);
+        updateHttpClient();
+
         decompress =  false;
         setFollowRedirects(false);
     }
@@ -1253,13 +1253,13 @@ public class BrowserMobHttpClient {
      * CloseableHttpClient doesn't permit anymore to change parameters easily.
      * This method allow you to rebuild the httpClientBuilder to get the CloseableHttpClient
      * When the config is changed.
-     * 
+     *
      * So httpClient reference change this may lead to concurrency issue.
      */
     private void updateHttpClient(){
-    	httpClient = httpClientBuilder.build();
+        httpClient = httpClientBuilder.build();
     }
-    
+
     public String remappedHost(String host) {
         return hostNameResolver.remapping(host);
     }
@@ -1409,5 +1409,13 @@ public class BrowserMobHttpClient {
         }
 
         return bytesCopied;
+    }
+
+    /** TestLabs **/
+
+    public void setSocksProxy(String proxyHost, int proxyPort, String username, String password) {
+        ProxyAuthenticator.INSTANCE.setCredentials(proxyHost, proxyPort, username, password);
+        socketFactory.setProxy(proxyHost, proxyPort);
+        sslSocketFactory.setProxy(proxyHost, proxyPort);
     }
 }

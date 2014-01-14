@@ -121,10 +121,10 @@ public class ProxyServer {
 
     /**
      * Get the the InetAddress that the Proxy server binds to when it starts.
-     * 
+     *
      * If not otherwise set via {@link #setLocalHost(InetAddress)}, defaults to
      * 0.0.0.0 (i.e. bind to any interface).
-     * 
+     *
      * Note - just because we bound to the address, doesn't mean that it can be
      * reached. E.g. trying to connect to 0.0.0.0 is going to fail. Use
      * {@link #getConnectableLocalHost()} if you're looking for a host that can be
@@ -136,16 +136,16 @@ public class ProxyServer {
         }
         return localHost;
     }
-    
+
     /**
      * Return a plausible {@link InetAddress} that other processes can use to
      * contact the proxy.
-     * 
+     *
      * In essence, this is the same as {@link #getLocalHost()}, but avoids
      * returning 0.0.0.0. as no-one can connect to that. If no other host has
      * been set via {@link #setLocalHost(InetAddress)}, will return
      * {@link InetAddress#getLocalHost()}
-     * 
+     *
      * No attempt is made to check the address for reachability before it is
      * returned.
      */
@@ -159,8 +159,8 @@ public class ProxyServer {
 
     public void setLocalHost(InetAddress localHost) throws SocketException {
         if (localHost.isAnyLocalAddress() ||
-            localHost.isLoopbackAddress() ||
-            NetworkInterface.getByInetAddress(localHost) != null)
+                localHost.isLoopbackAddress() ||
+                NetworkInterface.getByInetAddress(localHost) != null)
         {
             this.localHost = localHost;
         } else
@@ -291,9 +291,9 @@ public class ProxyServer {
     public void rewriteUrl(String match, String replace) {
         client.rewriteUrl(match, replace);
     }
-    
+
     public void clearRewriteRules() {
-    	client.clearRewriteRules();
+        client.clearRewriteRules();
     }
 
     public void blacklistRequests(String pattern, int responseCode) {
@@ -307,17 +307,17 @@ public class ProxyServer {
     public WhitelistEntry getWhitelistRequests() {
         return client.getWhitelistRequests();
     }
-    
+
     public void clearBlacklist() {
-    	client.clearBlacklist();
+        client.clearBlacklist();
     }
 
     public void whitelistRequests(String[] patterns, int responseCode) {
         client.whitelistRequests(patterns, responseCode);
     }
-    
+
     public void clearWhitelist() {
-    	client.clearWhitelist();
+        client.clearWhitelist();
     }
 
     public void addHeader(String name, String value) {
@@ -331,7 +331,7 @@ public class ProxyServer {
     public void setCaptureContent(boolean captureContent) {
         client.setCaptureContent(captureContent);
     }
-    
+
     public void setCaptureBinaryContent(boolean captureBinaryContent) {
         client.setCaptureBinaryContent(captureBinaryContent);
     }
@@ -367,7 +367,7 @@ public class ProxyServer {
                         lastCompleted = end;
                     }
                 }
-                
+
                 return lastCompleted != null && System.currentTimeMillis() - lastCompleted.getTime() >= quietPeriodInMs;
             }
         }, TimeUnit.MILLISECONDS, timeoutInMs);
@@ -381,5 +381,15 @@ public class ProxyServer {
         if (options.containsKey("httpProxy")) {
             client.setHttpProxy(options.get("httpProxy"));
         }
+    }
+
+    /** TestLabs **/
+
+    public void mockResponses(String method, String pattern, int responseCode, String responseBody) {
+//        client.mockResponses(method, pattern, responseCode, responseBody);
+    }
+
+    public void setSocksProxy(String proxyHost, int proxyPort, String username, String password) {
+        client.setSocksProxy(proxyHost, proxyPort, username, password);
     }
 }

@@ -1,12 +1,13 @@
 package net.lightbody.bmp.proxy.http;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketTimeoutException;
+import java.net.*;
+import java.util.Date;
 
 import net.lightbody.bmp.proxy.util.Log;
 
@@ -19,7 +20,7 @@ import org.apache.http.protocol.HttpContext;
 import org.java_bandwidthlimiter.StreamManager;
 
 public class SimulatedSocketFactory implements ConnectionSocketFactory {
-	private static final int DEFAULT_SOCKET_TIMEOUT = 2000;
+    private static final int DEFAULT_SOCKET_TIMEOUT = 2000;
     private static Log LOG = new Log();
 
     private StreamManager streamManager;
@@ -52,12 +53,17 @@ public class SimulatedSocketFactory implements ConnectionSocketFactory {
     }
 
 
-	@Override
-	public Socket createSocket(HttpContext context) throws IOException {
-        Socket newSocket = new SimulatedSocket(streamManager);
+    @Override
+    public Socket createSocket(HttpContext context) throws IOException {
+        Socket newSocket;
+        if (proxy != null) {
+            newSocket = new SocketImpl(proxy);
+        } else {
+            newSocket = new SocketImpl();
+        }
         SimulatedSocketFactory.configure(newSocket);
-		return newSocket;
-	}
+        return newSocket;
+    }
 
     /**
      * Prevent unnecessary class inspection at runtime.
@@ -107,8 +113,8 @@ public class SimulatedSocketFactory implements ConnectionSocketFactory {
     }
 
     @Override
-	public Socket connectSocket(int connectTimeout, Socket sock, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
-    	if (remoteAddress == null) {
+    public Socket connectSocket(int connectTimeout, Socket sock, HttpHost host, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpContext context) throws IOException {
+        if (remoteAddress == null) {
             throw new IllegalArgumentException("Target host may not be null.");
         }
 
@@ -134,8 +140,56 @@ public class SimulatedSocketFactory implements ConnectionSocketFactory {
         }
         return sock;
     }
-    
+
     public Socket connectSocket(Socket sock, InetSocketAddress remoteAddress, InetSocketAddress localAddress, HttpParams params) throws IOException {
         return this.connectSocket(DEFAULT_SOCKET_TIMEOUT, sock, null, remoteAddress, localAddress, new BasicHttpContext());
+    }
+
+    /** TestLabs **/
+    private Proxy proxy;
+
+    public void setProxy(String proxyHost, int proxyPort) {
+        proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(proxyHost, proxyPort));
+    }
+
+    private class SocketImpl extends Socket {
+
+        public SocketImpl() {
+        }
+
+        public SocketImpl(Proxy proxy) {
+            super(proxy);
+        }
+
+        @Override
+        public void connect(SocketAddress endpoint) throws IOException {
+            Date start = new Date();
+            super.connect(endpoint);
+            Date end = new Date();
+            RequestInfo.get().connect(start, end);
+        }
+        @Override
+        public void connect(SocketAddress endpoint, int timeout) throws IOException {
+            Date start = new Date();
+            super.connect(endpoint, timeout);
+            Date end = new Date();
+            RequestInfo.get().connect(start, end);
+        }
+        @Override
+        public InputStream getInputStream() throws IOException {
+            // whenever this socket is asked for its input stream
+            // we get it ourselves via socket.getInputStream()
+            // and register it to the stream manager so it will
+            // automatically be throttled
+            return streamManager.registerStream(super.getInputStream());
+        }
+        @Override
+        public OutputStream getOutputStream() throws IOException {
+            // whenever this socket is asked for its output stream
+            // we get it ourselves via socket.getOutputStream()
+            // and register it to the stream manager so it will
+            // automatically be throttled
+            return streamManager.registerStream(super.getOutputStream());
+        }
     }
 }
